@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Distância e CEP</title>
+    <title>Calculadora de Frete - Bragança/PA</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -33,14 +33,22 @@
             padding-left: 10px;
             border-left: 3px solid #f0f0f0;
         }
+        
+        .origem-fixa {
+            background-color: #f8f9fa;
+            border-left: 3px solid #28a745;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <div class="row my-3">
             <div class="col">
-                <h1 class="text-center">Calculadora de Distância e CEP</h1>
-                <p class="text-center lead">Clique em dois pontos no mapa para calcular a distância e encontrar os CEPs</p>
+                <h1 class="text-center">Calculadora de Frete - Bragança, Pará</h1>
+                <p class="text-center lead">Clique em um ponto no mapa para selecionar o destino e calcular a distância e o CEP</p>
             </div>
         </div>
         
@@ -57,24 +65,26 @@
                         <h4>Informações</h4>
                     </div>
                     <div class="card-body">
-                        <h5>Ponto 1:</h5>
-                        <p id="ponto1-coords">Não selecionado</p>
+                        <div class="origem-fixa">
+                            <h5>Origem (fixo):</h5>
+                            <p>{{ origem.nome }}</p>
+                            <h5>CEP Origem:</h5>
+                            <p>{{ origem.cep }}</p>
+                            <p class="text-muted">Coordenadas: {{ origem.lat }}, {{ origem.lng }}</p>
+                        </div>
                         
-                        <h5>CEP Origem:</h5>
-                        <p id="cep1">-</p>
-                        
-                        <h5>Ponto 2:</h5>
-                        <p id="ponto2-coords">Não selecionado</p>
+                        <h5>Destino:</h5>
+                        <p id="destino-coords">Não selecionado</p>
                         
                         <h5>CEP Destino:</h5>
-                        <p id="cep2">-</p>
+                        <p id="cep-destino">-</p>
                         
                         <h5>Distância:</h5>
                         <p id="distancia">-</p>
                         
                         <div class="d-flex gap-2 mt-4">
-                            <button id="btn-resetar" class="btn btn-secondary">Resetar Pontos</button>
-                            <button id="btn-calcular" class="btn btn-primary">Calcular Distância</button>
+                            <button id="btn-resetar" class="btn btn-secondary">Resetar Destino</button>
+                            <button id="btn-calcular" class="btn btn-primary">Calcular Frete</button>
                         </div>
                     </div>
                 </div>
@@ -90,8 +100,16 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Dados da origem fixa
+            const origemFixa = {
+                lat: {{ origem.lat }},
+                lng: {{ origem.lng }},
+                nome: "{{ origem.nome }}",
+                cep: "{{ origem.cep }}"
+            };
+            
             // Inicializar o mapa
-            var map = L.map('map').setView([-15.77972, -47.92972], 4); // Centro no Brasil
+            var map = L.map('map').setView([origemFixa.lat, origemFixa.lng], 5); // Centraliza em Bragança
             
             // Adicionar camada de mapa
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -99,88 +117,101 @@
             }).addTo(map);
             
             // Variáveis para armazenar pontos
-            var ponto1 = null;
-            var ponto2 = null;
-            var marker1 = null;
-            var marker2 = null;
+            var destino = null;
+            var marcadorOrigem = null;
+            var marcadorDestino = null;
             var linha = null;
             
-            // Manipular cliques no mapa
+            // Adicionar marcador de origem fixo
+            marcadorOrigem = L.marker([origemFixa.lat, origemFixa.lng])
+                .addTo(map)
+                .bindPopup("Origem: " + origemFixa.nome)
+                .openPopup();
+            
+            // Personalizar o ícone de origem para destacá-lo
+            marcadorOrigem.setIcon(L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+                shadowSize: [41, 41]
+            }));
+            
+            // Manipular cliques no mapa (apenas para o destino)
             map.on('click', function(e) {
                 var lat = e.latlng.lat;
                 var lng = e.latlng.lng;
                 
-                // Primeiro clique: ponto de origem
-                if (ponto1 === null) {
-                    ponto1 = {lat: lat, lng: lng};
-                    document.getElementById('ponto1-coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                    
-                    // Adicionar marcador
-                    marker1 = L.marker([lat, lng]).addTo(map);
-                    marker1.bindPopup("Origem").openPopup();
-                } 
-                // Segundo clique: ponto de destino
-                else if (ponto2 === null) {
-                    ponto2 = {lat: lat, lng: lng};
-                    document.getElementById('ponto2-coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                    
-                    // Adicionar marcador
-                    marker2 = L.marker([lat, lng]).addTo(map);
-                    marker2.bindPopup("Destino").openPopup();
-                    
-                    // Desenhar linha entre os pontos
-                    linha = L.polyline([
-                        [ponto1.lat, ponto1.lng],
-                        [ponto2.lat, ponto2.lng]
-                    ], {color: 'red'}).addTo(map);
+                // Remover marcador de destino anterior se existir
+                if (marcadorDestino) {
+                    map.removeLayer(marcadorDestino);
                 }
+                
+                // Remover linha anterior se existir
+                if (linha) {
+                    map.removeLayer(linha);
+                }
+                
+                // Definir novo destino
+                destino = {lat: lat, lng: lng};
+                document.getElementById('destino-coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                
+                // Adicionar marcador de destino
+                marcadorDestino = L.marker([lat, lng]).addTo(map);
+                marcadorDestino.bindPopup("Destino").openPopup();
+                
+                // Desenhar linha entre origem e destino
+                linha = L.polyline([
+                    [origemFixa.lat, origemFixa.lng],
+                    [lat, lng]
+                ], {color: 'red'}).addTo(map);
+                
+                // Ajustar visualização para mostrar ambos os pontos
+                map.fitBounds(linha.getBounds(), {padding: [50, 50]});
             });
             
             // Botão Resetar
             document.getElementById('btn-resetar').addEventListener('click', function() {
-                // Remover marcadores e linha
-                if (marker1) map.removeLayer(marker1);
-                if (marker2) map.removeLayer(marker2);
+                // Remover marcador de destino e linha
+                if (marcadorDestino) map.removeLayer(marcadorDestino);
                 if (linha) map.removeLayer(linha);
                 
-                // Resetar pontos
-                ponto1 = null;
-                ponto2 = null;
-                marker1 = null;
-                marker2 = null;
+                // Resetar destino
+                destino = null;
+                marcadorDestino = null;
                 linha = null;
                 
                 // Resetar informações
-                document.getElementById('ponto1-coords').textContent = "Não selecionado";
-                document.getElementById('ponto2-coords').textContent = "Não selecionado";
-                document.getElementById('cep1').textContent = "-";
-                document.getElementById('cep2').textContent = "-";
+                document.getElementById('destino-coords').textContent = "Não selecionado";
+                document.getElementById('cep-destino').textContent = "-";
                 document.getElementById('distancia').textContent = "-";
+                
+                // Voltar visualização para a origem
+                map.setView([origemFixa.lat, origemFixa.lng], 5);
             });
             
             // Botão Calcular
             document.getElementById('btn-calcular').addEventListener('click', function() {
-                if (!ponto1 || !ponto2) {
-                    alert("Por favor, selecione dois pontos no mapa primeiro.");
+                if (!destino) {
+                    alert("Por favor, selecione um destino no mapa primeiro.");
                     return;
                 }
                 
                 // Mostrar indicador de carregamento
                 document.getElementById('distancia').textContent = "Calculando...";
-                document.getElementById('cep1').textContent = "Buscando...";
-                document.getElementById('cep2').textContent = "Buscando...";
+                document.getElementById('cep-destino').textContent = "Buscando...";
                 
-                console.log("Enviando pontos para cálculo:", ponto1, ponto2);
+                console.log("Enviando dados para cálculo. Destino:", destino);
                 
-                // Enviar pontos para a API
+                // Enviar destino para a API
                 fetch('/api/calcular', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        ponto1: ponto1,
-                        ponto2: ponto2
+                        destino: destino
                     })
                 })
                 .then(response => {
@@ -201,30 +232,20 @@
                     // Atualizar informações
                     document.getElementById('distancia').textContent = `${data.distancia} km`;
                     
-                    // CEP 1
-                    let textoCep1 = data.cep1.cep;
-                    if (data.cep1.tipo === "aproximado") {
-                        textoCep1 += " (aproximado)";
-                    } else if (data.cep1.tipo === "cidade") {
-                        textoCep1 += " (cidade)";
-                    }
-                    document.getElementById('cep1').textContent = textoCep1;
-                    
-                    // CEP 2
-                    let textoCep2 = data.cep2.cep;
+                    // CEP destino
+                    let textoCep = data.cep2.cep;
                     if (data.cep2.tipo === "aproximado") {
-                        textoCep2 += " (aproximado)";
+                        textoCep += " (aproximado)";
                     } else if (data.cep2.tipo === "cidade") {
-                        textoCep2 += " (cidade)";
+                        textoCep += " (cidade)";
                     }
-                    document.getElementById('cep2').textContent = textoCep2;
+                    document.getElementById('cep-destino').textContent = textoCep;
                 })
                 .catch(error => {
                     console.error('Erro:', error);
-                    alert("Ocorreu um erro ao calcular a distância e obter os CEPs. Detalhes: " + error.message);
+                    alert("Ocorreu um erro ao calcular a distância e obter o CEP. Detalhes: " + error.message);
                     document.getElementById('distancia').textContent = "-";
-                    document.getElementById('cep1').textContent = "-";
-                    document.getElementById('cep2').textContent = "-";
+                    document.getElementById('cep-destino').textContent = "-";
                 });
             });
         });

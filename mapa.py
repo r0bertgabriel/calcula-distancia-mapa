@@ -5,6 +5,14 @@ import os
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
+# Definir ponto de origem fixo (Bragança, Pará)
+ORIGEM_FIXA = {
+    "lat": -1.0511,
+    "lng": -46.7631,
+    "nome": "Bragança, Pará",
+    "cep": "68600000"
+}
+
 # Função para buscar CEP com um raio específico
 def buscar_cep_com_raio(lat, lon, raio=0):
     if raio == 0:
@@ -96,7 +104,7 @@ def obter_cep(lat, lon):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', origem=ORIGEM_FIXA)
 
 @app.route('/api/calcular', methods=['POST'])
 def calcular():
@@ -109,32 +117,29 @@ def calcular():
         data = request.json
         
         # Validar dados de entrada
-        if 'ponto1' not in data or 'ponto2' not in data:
-            print("Erro: Dados incompletos - faltam pontos")
-            return jsonify({'error': 'Dados incompletos. Pontos 1 e 2 são necessários'}), 400
+        if 'destino' not in data:
+            print("Erro: Dados incompletos - falta destino")
+            return jsonify({'error': 'Dados incompletos. Destino é necessário'}), 400
             
-        if 'lat' not in data['ponto1'] or 'lng' not in data['ponto1'] or 'lat' not in data['ponto2'] or 'lng' not in data['ponto2']:
+        if 'lat' not in data['destino'] or 'lng' not in data['destino']:
             print("Erro: Dados mal formatados - faltam coordenadas")
             return jsonify({'error': 'Formato inválido. Coordenadas lat/lng são necessárias'}), 400
         
         # Extrair coordenadas
-        ponto1 = (float(data['ponto1']['lat']), float(data['ponto1']['lng']))
-        ponto2 = (float(data['ponto2']['lat']), float(data['ponto2']['lng']))
+        origem = (ORIGEM_FIXA['lat'], ORIGEM_FIXA['lng'])
+        destino = (float(data['destino']['lat']), float(data['destino']['lng']))
         
-        print(f"Calculando distância entre: {ponto1} e {ponto2}")
+        print(f"Calculando distância entre: {origem} e {destino}")
         
         # Calcular distância
-        distancia = geodesic(ponto1, ponto2).kilometers
+        distancia = geodesic(origem, destino).kilometers
         
-        # Obter CEPs com tratamento de erro
-        try:
-            cep1 = obter_cep(ponto1[0], ponto1[1])
-        except Exception as e:
-            print(f"Erro ao obter CEP1: {str(e)}")
-            cep1 = {"cep": "Erro ao obter CEP", "tipo": "erro"}
+        # Usamos o CEP fixo para a origem
+        cep1 = {"cep": ORIGEM_FIXA['cep'], "tipo": "fixo"}
             
+        # Obter CEP de destino com tratamento de erro
         try:
-            cep2 = obter_cep(ponto2[0], ponto2[1])
+            cep2 = obter_cep(destino[0], destino[1])
         except Exception as e:
             print(f"Erro ao obter CEP2: {str(e)}")
             cep2 = {"cep": "Erro ao obter CEP", "tipo": "erro"}
